@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #07090c;
+  --color-surface: #12171c;
+  --color-fg: #e7f6f2;
+  --color-muted: #8ea39a;
+  --color-line: #24302c;
+  --color-aces: #2ee6c7;
+  --color-kings: #ff5d73;
+  --color-bone: #f4f0e6;
+  --font-display: "Oswald", sans-serif;
+  --font-sans: "Outfit", sans-serif;
+  --radius: 0.75rem;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+  body {
+    overflow: hidden;
+    font-family: var(--font-sans);
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+.call-sheet {
+  max-height: 48dvh;
+}
