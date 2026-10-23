@@ -1,14 +1,9 @@
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let sfxBus: GainNode | null = null;
-let crowdBus: GainNode | null = null;
-let cheer: GainNode | null = null;
 let noiseBuf: AudioBuffer | null = null;
-let started = false;
 let muted = false;
 let volume = 0.85;
-let energy = 0.12;
-let target = 0.12;
 
 function curve(v: number): number {
   return v * v;
@@ -22,11 +17,8 @@ function ensure(): AudioContext | null {
     ctx = new AC({ latencyHint: "interactive" });
     master = ctx.createGain();
     sfxBus = ctx.createGain();
-    crowdBus = ctx.createGain();
     sfxBus.gain.value = 0.9;
-    crowdBus.gain.value = 0.85;
     sfxBus.connect(master);
-    crowdBus.connect(master);
     master.connect(ctx.destination);
     master.gain.value = muted ? 0 : curve(volume);
     const n = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -35,7 +27,7 @@ function ensure(): AudioContext | null {
     for (let i = 0; i < data.length; i++) {
       const w = Math.random() * 2 - 1;
       b = b * 0.96 + w * 0.04;
-      data[i] = w * 0.65 + b * 6;
+      data[i] = (w * 0.55 + b) * 0.35;
     }
     noiseBuf = n;
   }
@@ -45,7 +37,6 @@ function ensure(): AudioContext | null {
 export function unlockAudio(): void {
   const c = ensure();
   if (c && c.state === "suspended") void c.resume();
-  startCrowd();
 }
 
 export function setMuted(next: boolean): void {
@@ -64,60 +55,6 @@ export function setVolume(v: number): void {
 
 export function resumeAudio(): void {
   if (ctx && ctx.state === "suspended") void ctx.resume();
-}
-
-/** 0 idle stands, 1 a full roar. Decays toward the phase bed. */
-export function pumpCrowd(n: number): void {
-  energy = Math.max(energy, Math.max(0, Math.min(1, n)));
-}
-
-export function setCrowdBed(n: number): void {
-  target = Math.max(0.04, Math.min(0.55, n));
-}
-
-export function tickAudio(dt: number): void {
-  if (!ctx || !cheer) return;
-  energy += (target - energy) * Math.min(1, dt * 1.4);
-  cheer.gain.setTargetAtTime(0.012 + energy * 0.16, ctx.currentTime, 0.06);
-}
-
-function startCrowd(): void {
-  if (!ctx || !noiseBuf || !crowdBus || started) return;
-  started = true;
-  const bed = ctx.createBufferSource();
-  bed.buffer = noiseBuf;
-  bed.loop = true;
-  const low = ctx.createBiquadFilter();
-  low.type = "lowpass";
-  low.frequency.value = 520;
-  const bedGain = ctx.createGain();
-  bedGain.gain.value = 0.045;
-  bed.connect(low);
-  low.connect(bedGain);
-  bedGain.connect(crowdBus);
-  bed.start();
-
-  const roar = ctx.createBufferSource();
-  roar.buffer = noiseBuf;
-  roar.loop = true;
-  const mid = ctx.createBiquadFilter();
-  mid.type = "bandpass";
-  mid.frequency.value = 1400;
-  mid.Q.value = 0.55;
-  cheer = ctx.createGain();
-  cheer.gain.value = 0.02;
-  roar.connect(mid);
-  mid.connect(cheer);
-  cheer.connect(crowdBus);
-  roar.start();
-
-  const lfo = ctx.createOscillator();
-  lfo.frequency.value = 0.18;
-  const lfoGain = ctx.createGain();
-  lfoGain.gain.value = 90;
-  lfo.connect(lfoGain);
-  lfoGain.connect(mid.frequency);
-  lfo.start();
 }
 
 function envGain(at: number, peak: number, dur: number, attack = 0.012): GainNode | null {
@@ -212,7 +149,6 @@ export function playSfx(name: string): void {
       burst(0.05, 0.28, 2200, 0.9, "highpass");
       burst(0.09, 0.16, 240, 0.5);
       tone(180, 0.06, "sine", 0.1, -40, 0.004);
-      pumpCrowd(0.32);
       break;
     case "pass":
       burst(0.16, 0.1, 1600, 0.45);
@@ -223,13 +159,11 @@ export function playSfx(name: string): void {
       thud(70);
       burst(0.18, 0.08, 900, 0.4);
       tone(160, 0.2, "sine", 0.08, 80);
-      pumpCrowd(0.4);
       break;
     case "catch":
       burst(0.06, 0.2, 1800, 0.8);
       tone(540 * wobble, 0.07, "sine", 0.08);
       burst(0.1, 0.1, 400, 0.5);
-      pumpCrowd(0.62);
       break;
     case "inc":
       tone(240, 0.16, "sine", 0.06, -90);
@@ -239,12 +173,10 @@ export function playSfx(name: string): void {
     case "hit":
       thud(78);
       tone(140, 0.1, "square", 0.04, -60, 0.004);
-      pumpCrowd(0.58);
       break;
     case "tackle":
       thud(64);
       burst(0.18, 0.16, 140, 0.45);
-      pumpCrowd(0.5);
       break;
     case "juke":
       tone(480 * wobble, 0.05, "square", 0.035, 180, 0.004);
@@ -257,7 +189,6 @@ export function playSfx(name: string): void {
       tone(523, 0.09, "triangle", 0.07);
       tone(659, 0.12, "triangle", 0.07);
       tone(784, 0.16, "sine", 0.05);
-      pumpCrowd(0.7);
       break;
     case "td":
       tone(196, 0.22, "sawtooth", 0.04);
@@ -265,13 +196,11 @@ export function playSfx(name: string): void {
       tone(392, 0.34, "triangle", 0.06);
       tone(523, 0.42, "sine", 0.05);
       burst(0.35, 0.08, 500, 0.4);
-      pumpCrowd(1);
       break;
     case "int":
       tone(440, 0.1, "square", 0.045, -80);
       tone(330, 0.18, "square", 0.04, -40);
       burst(0.12, 0.1, 700, 0.6);
-      pumpCrowd(0.75);
       break;
     case "miss":
       tone(220, 0.2, "sine", 0.06, -80);

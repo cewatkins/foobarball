@@ -1,7 +1,7 @@
 import { o as __toESM } from "../_runtime.mjs";
 import { K as require_react, b as require_jsx_runtime } from "../_libs/@tanstack/react-router+[...].mjs";
 import { a as Play, c as Copy, i as Shield, n as Volume2, o as Pause, s as Link2, t as VolumeX } from "../_libs/lucide-react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-DfFNg3q9.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-BaXbtNSx.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var FAST_POLL_MS = 400;
@@ -2159,14 +2159,9 @@ function paintZone(ctx, project, dir, scale, w, h, x0, x1, color, label) {
 var ctx = null;
 var master = null;
 var sfxBus = null;
-var crowdBus = null;
-var cheer = null;
 var noiseBuf = null;
-var started = false;
 var muted = false;
 var volume = .85;
-var energy = .12;
-var target = .12;
 function curve(v) {
 	return v * v;
 }
@@ -2178,11 +2173,8 @@ function ensure() {
 		ctx = new AC({ latencyHint: "interactive" });
 		master = ctx.createGain();
 		sfxBus = ctx.createGain();
-		crowdBus = ctx.createGain();
 		sfxBus.gain.value = .9;
-		crowdBus.gain.value = .85;
 		sfxBus.connect(master);
-		crowdBus.connect(master);
 		master.connect(ctx.destination);
 		master.gain.value = muted ? 0 : curve(volume);
 		const n = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -2191,7 +2183,7 @@ function ensure() {
 		for (let i = 0; i < data.length; i++) {
 			const w = Math.random() * 2 - 1;
 			b = b * .96 + w * .04;
-			data[i] = w * .65 + b * 6;
+			data[i] = (w * .55 + b) * .35;
 		}
 		noiseBuf = n;
 	}
@@ -2200,7 +2192,6 @@ function ensure() {
 function unlockAudio() {
 	const c = ensure();
 	if (c && c.state === "suspended") c.resume();
-	startCrowd();
 }
 function setMuted(next) {
 	muted = next;
@@ -2211,54 +2202,6 @@ function isMuted() {
 }
 function resumeAudio() {
 	if (ctx && ctx.state === "suspended") ctx.resume();
-}
-/** 0 idle stands, 1 a full roar. Decays toward the phase bed. */
-function pumpCrowd(n) {
-	energy = Math.max(energy, Math.max(0, Math.min(1, n)));
-}
-function setCrowdBed(n) {
-	target = Math.max(.04, Math.min(.55, n));
-}
-function tickAudio(dt) {
-	if (!ctx || !cheer) return;
-	energy += (target - energy) * Math.min(1, dt * 1.4);
-	cheer.gain.setTargetAtTime(.012 + energy * .16, ctx.currentTime, .06);
-}
-function startCrowd() {
-	if (!ctx || !noiseBuf || !crowdBus || started) return;
-	started = true;
-	const bed = ctx.createBufferSource();
-	bed.buffer = noiseBuf;
-	bed.loop = true;
-	const low = ctx.createBiquadFilter();
-	low.type = "lowpass";
-	low.frequency.value = 520;
-	const bedGain = ctx.createGain();
-	bedGain.gain.value = .045;
-	bed.connect(low);
-	low.connect(bedGain);
-	bedGain.connect(crowdBus);
-	bed.start();
-	const roar = ctx.createBufferSource();
-	roar.buffer = noiseBuf;
-	roar.loop = true;
-	const mid = ctx.createBiquadFilter();
-	mid.type = "bandpass";
-	mid.frequency.value = 1400;
-	mid.Q.value = .55;
-	cheer = ctx.createGain();
-	cheer.gain.value = .02;
-	roar.connect(mid);
-	mid.connect(cheer);
-	cheer.connect(crowdBus);
-	roar.start();
-	const lfo = ctx.createOscillator();
-	lfo.frequency.value = .18;
-	const lfoGain = ctx.createGain();
-	lfoGain.gain.value = 90;
-	lfo.connect(lfoGain);
-	lfoGain.connect(mid.frequency);
-	lfo.start();
 }
 function envGain(at, peak, dur, attack = .012) {
 	if (!ctx || !sfxBus) return null;
@@ -2347,7 +2290,6 @@ function playSfx(name) {
 			burst(.05, .28, 2200, .9, "highpass");
 			burst(.09, .16, 240, .5);
 			tone(180, .06, "sine", .1, -40, .004);
-			pumpCrowd(.32);
 			break;
 		case "pass":
 			burst(.16, .1, 1600, .45);
@@ -2358,13 +2300,11 @@ function playSfx(name) {
 			thud(70);
 			burst(.18, .08, 900, .4);
 			tone(160, .2, "sine", .08, 80);
-			pumpCrowd(.4);
 			break;
 		case "catch":
 			burst(.06, .2, 1800, .8);
 			tone(540 * wobble, .07, "sine", .08);
 			burst(.1, .1, 400, .5);
-			pumpCrowd(.62);
 			break;
 		case "inc":
 			tone(240, .16, "sine", .06, -90);
@@ -2374,12 +2314,10 @@ function playSfx(name) {
 		case "hit":
 			thud(78);
 			tone(140, .1, "square", .04, -60, .004);
-			pumpCrowd(.58);
 			break;
 		case "tackle":
 			thud(64);
 			burst(.18, .16, 140, .45);
-			pumpCrowd(.5);
 			break;
 		case "juke":
 			tone(480 * wobble, .05, "square", .035, 180, .004);
@@ -2392,7 +2330,6 @@ function playSfx(name) {
 			tone(523, .09, "triangle", .07);
 			tone(659, .12, "triangle", .07);
 			tone(784, .16, "sine", .05);
-			pumpCrowd(.7);
 			break;
 		case "td":
 			tone(196, .22, "sawtooth", .04);
@@ -2400,13 +2337,11 @@ function playSfx(name) {
 			tone(392, .34, "triangle", .06);
 			tone(523, .42, "sine", .05);
 			burst(.35, .08, 500, .4);
-			pumpCrowd(1);
 			break;
 		case "int":
 			tone(440, .1, "square", .045, -80);
 			tone(330, .18, "square", .04, -40);
 			burst(.12, .1, 700, .6);
-			pumpCrowd(.75);
 			break;
 		case "miss":
 			tone(220, .2, "sine", .06, -80);
@@ -3929,14 +3864,10 @@ function Nightline() {
 	const [booth, setBooth] = (0, import_react.useState)(null);
 	const [linkLost, setLinkLost] = (0, import_react.useState)(false);
 	const [linkNote, setLinkNote] = (0, import_react.useState)("");
-	const [guestReady, setGuestReady] = (0, import_react.useState)(false);
 	const [rematchAsk, setRematchAsk] = (0, import_react.useState)(false);
 	const [asked, setAsked] = (0, import_react.useState)(false);
 	const homeRef = (0, import_react.useRef)(false);
 	const push = (0, import_react.useCallback)(() => setHud(readHud(sim.current)), []);
-	const onPeer = (0, import_react.useCallback)((up) => {
-		if (!up) setGuestReady(false);
-	}, []);
 	(0, import_react.useEffect)(() => {
 		const onDown = (e) => {
 			const el = e.target;
@@ -4004,12 +3935,14 @@ function Nightline() {
 		let hudAcc = 0;
 		let sendAcc = 0;
 		let raf = 0;
+		let relAcc = 0;
 		const loop = (now) => {
 			const dt = Math.min(.05, (now - last) / 1e3);
 			last = now;
 			acc += dt;
 			hudAcc += dt;
 			sendAcc += dt;
+			relAcc += dt;
 			const s = sim.current;
 			let sentGuest = false;
 			let first = true;
@@ -4052,8 +3985,6 @@ function Nightline() {
 				remote.current.throwTo = null;
 			}
 			if (!s.simLocal) smoothGuest(s, dt);
-			setCrowdBed(s.phase === "live" ? .4 : s.phase === "menu" || s.phase === "lobby" ? .08 : .18);
-			tickAudio(dt);
 			if (s.simLocal && s.sfxN !== lastSfx.current) {
 				lastSfx.current = s.sfxN;
 				playSfx(s.sfx);
@@ -4063,15 +3994,26 @@ function Nightline() {
 				phaseHold.current = s.phase;
 				flushNet.current = false;
 				sendAcc = 1;
+				relAcc = 1;
 			}
 			draw(s, dt, { team: s.myTeam });
 			const link = net.current;
-			if (s.online && link && s.phase !== "menu") {
-				if (s.simLocal && sendAcc > (s.phase === "live" ? .05 : .12)) {
-					link.broadcast(packSnap(s));
-					sendAcc = 0;
-				}
-				if (!s.simLocal && sendAcc > .05) {
+			if (s.online && link && s.phase !== "menu" && s.phase !== "lobby") {
+				if (s.simLocal) {
+					const fast = sendAcc > (s.phase === "live" ? .05 : .12);
+					const sure = relAcc > .25;
+					if (fast || sure) {
+						const snap = packSnap(s);
+						if (fast) {
+							link.broadcast(snap);
+							sendAcc = 0;
+						}
+						if (sure) {
+							link.send(snap);
+							relAcc = 0;
+						}
+					}
+				} else if (sendAcc > .05) {
 					const pad = readPad(keys.current, forced.current, touch.current, emptyEdges(), false);
 					link.broadcast({
 						k: "in",
@@ -4161,7 +4103,6 @@ function Nightline() {
 		setScreen("menu");
 		setPaused(false);
 		setLinkLost(false);
-		setGuestReady(false);
 		setRematchAsk(false);
 		setAsked(false);
 		setLinkNote("");
@@ -4204,8 +4145,7 @@ function Nightline() {
 			s.paused = !!msg.on;
 			setPaused(s.paused);
 			flushNet.current = true;
-		} else if (homeRef.current && msg.k === "ready") setGuestReady(true);
-		else if (homeRef.current && msg.k === "rematch") setRematchAsk(true);
+		} else if (homeRef.current && msg.k === "rematch") setRematchAsk(true);
 	}, []);
 	(0, import_react.useEffect)(() => {
 		if (hud.phase !== "call") setPicked(null);
@@ -4278,7 +4218,6 @@ function Nightline() {
 						});
 						setScreen("booth");
 						setLinkLost(false);
-						setGuestReady(false);
 						setRematchAsk(false);
 						setAsked(false);
 						push();
@@ -4293,7 +4232,6 @@ function Nightline() {
 						});
 						setScreen("booth");
 						setLinkLost(false);
-						setGuestReady(false);
 						setRematchAsk(false);
 						setAsked(false);
 						push();
@@ -4306,14 +4244,16 @@ function Nightline() {
 					netRef: net,
 					onMessage: onNet,
 					onKick: () => {
-						hostKickoff(sim.current);
+						const s = sim.current;
+						hostKickoff(s);
+						const snap = packSnap(s);
+						net.current?.send(snap);
+						net.current?.broadcast(snap);
 						flushNet.current = true;
 						push();
 					},
 					onLost: () => setLinkLost(true),
-					onLink: setLinkNote,
-					guestReady,
-					onPeer
+					onLink: setLinkNote
 				}),
 				hud.phase === "call" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CallSheet, {
 					offense,
@@ -4588,6 +4528,10 @@ function Menu({ sharp, onSharp, onStart, onLink }) {
 		})
 	});
 }
+function roomCode(raw) {
+	const alnum = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+	return alnum.length <= 4 ? alnum : alnum.slice(-4);
+}
 function LinkPanel({ onBack, onHost, onJoin }) {
 	const [code, setCode] = (0, import_react.useState)("");
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -4613,14 +4557,17 @@ function LinkPanel({ onBack, onHost, onJoin }) {
 					className: "mt-3 flex gap-2",
 					onSubmit: (e) => {
 						e.preventDefault();
-						const next = code.trim().toUpperCase();
-						if (next.length >= 2) onJoin(next);
+						const next = roomCode(code);
+						if (next.length === 4) onJoin(next);
 					},
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
 						value: code,
-						onChange: (e) => setCode(e.target.value.toUpperCase()),
+						onChange: (e) => setCode(roomCode(e.target.value)),
 						placeholder: "Code",
-						maxLength: 8,
+						maxLength: 64,
+						autoCapitalize: "characters",
+						autoCorrect: "off",
+						spellCheck: false,
 						className: "h-12 flex-1 rounded-xl border border-line bg-surface px-3 font-display text-xl tracking-widest text-fg outline-none"
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 						type: "submit",
@@ -4638,13 +4585,12 @@ function LinkPanel({ onBack, onHost, onJoin }) {
 		})
 	});
 }
-function Online({ room, home, hud, netRef, onMessage, onKick, onLost, onLink, onPeer, guestReady }) {
+function Online({ room, home, hud, netRef, onMessage, onKick, onLost, onLink }) {
 	const p2p = useP2PRoom({
 		room,
 		name: home ? "Aces" : "Kings"
 	});
 	const seen = (0, import_react.useRef)(false);
-	const [readySent, setReadySent] = (0, import_react.useState)(false);
 	(0, import_react.useEffect)(() => {
 		netRef.current = {
 			broadcast: p2p.broadcast,
@@ -4659,7 +4605,6 @@ function Online({ room, home, hud, netRef, onMessage, onKick, onLost, onLink, on
 	(0, import_react.useEffect)(() => {
 		const up = p2p.peers.some((p) => p.connectionState === "connected");
 		if (up) seen.current = true;
-		onPeer(up);
 		if (seen.current && p2p.joined && !up && hud.phase !== "lobby" && hud.phase !== "menu") onLost();
 		const peer = p2p.peers[0];
 		if (!p2p.joined) onLink("Opening the booth…");
@@ -4672,8 +4617,7 @@ function Online({ room, home, hud, netRef, onMessage, onKick, onLost, onLink, on
 		p2p.joined,
 		hud.phase,
 		onLost,
-		onLink,
-		onPeer
+		onLink
 	]);
 	if (hud.phase !== "lobby") return null;
 	const peer = p2p.peers[0];
@@ -4694,7 +4638,7 @@ function Online({ room, home, hud, netRef, onMessage, onKick, onLost, onLink, on
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: "mt-2 inline-flex items-center gap-2 text-sm text-aces",
-					onClick: () => void navigator.clipboard?.writeText(`Nightline booth ${room}`),
+					onClick: () => void navigator.clipboard?.writeText(room),
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "size-4" }), "Copy code"]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PeerLine, {
@@ -4703,19 +4647,13 @@ function Online({ room, home, hud, netRef, onMessage, onKick, onLost, onLink, on
 				}),
 				home ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 					type: "button",
-					disabled: !linked || !guestReady,
+					disabled: !linked,
 					className: "mt-4 h-12 w-full rounded-xl bg-aces font-display text-lg text-bg disabled:opacity-40",
 					onClick: onKick,
-					children: guestReady ? "Kick off" : "Waiting for Kings"
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-					type: "button",
-					disabled: !linked || readySent,
-					className: "mt-4 h-12 w-full rounded-xl bg-kings font-display text-lg text-bg disabled:opacity-40",
-					onClick: () => {
-						netRef.current?.send({ k: "ready" });
-						setReadySent(true);
-					},
-					children: readySent ? "Ready — waiting on the kick" : "Ready up"
+					children: linked ? "Kick off" : "Waiting for Kings"
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+					className: "mt-4 text-center text-sm text-muted",
+					children: linked ? "Linked. The game starts when Ridge kicks off." : "Hang on — the link opens, then Ridge kicks off."
 				})
 			]
 		})
