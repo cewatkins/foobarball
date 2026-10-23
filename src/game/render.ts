@@ -15,12 +15,22 @@ export interface DrawLocal {
 }
 
 export function createRenderer(canvas: HTMLCanvasElement) {
-  const crowd = Array.from({ length: 220 }, () => ({
+  const crowd = Array.from({ length: 280 }, () => ({
     x: Math.random(),
     y: Math.random(),
-    r: 0.6 + Math.random() * 1.8,
-    a: 0.12 + Math.random() * 0.4,
+    r: 0.7 + Math.random() * 2.2,
+    a: 0.15 + Math.random() * 0.45,
+    c: Math.random() < 0.5 ? "180, 230, 214" : "255, 170, 184",
   }));
+  const sheets = {
+    acesBack: loadImg("/sprites/aces-back.png"),
+    acesFront: loadImg("/sprites/aces-front.png"),
+    kingsBack: loadImg("/sprites/kings-back.png"),
+    kingsFront: loadImg("/sprites/kings-front.png"),
+    ball: loadImg("/sprites/ball.png"),
+    turf: loadImg("/sprites/turf.jpg"),
+  };
+  let turfPat: CanvasPattern | null = null;
   let camX = 60;
   let camY = 0;
   let zoom = 0;
@@ -89,8 +99,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, w, standH);
     for (const c of crowd) {
-      ctx.fillStyle = `rgba(180, 210, 200, ${c.a * 0.45})`;
-      ctx.fillRect(c.x * w, 8 + c.y * (standH - 16), c.r, c.r + 1);
+      ctx.fillStyle = `rgba(${c.c}, ${c.a * 0.55})`;
+      ctx.fillRect(c.x * w, 8 + c.y * (standH - 16), c.r, c.r + 2);
     }
     ctx.fillStyle = "rgba(46, 230, 199, 0.05)";
     ctx.beginPath();
@@ -111,6 +121,23 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       const b = project(x + 5, 32, dir, scale, w, h);
       ctx.fillStyle = (x / 5) % 2 === 0 ? TURF_A : TURF_B;
       ctx.fillRect(Math.min(a.sx, b.sx) - 40, Math.min(a.sy, b.sy), Math.abs(b.sx - a.sx) + 80, Math.abs(b.sy - a.sy));
+    }
+
+    if (sheets.turf.complete && sheets.turf.naturalWidth > 0) {
+      turfPat ??= ctx.createPattern(sheets.turf, "repeat");
+      if (turfPat) {
+        ctx.save();
+        ctx.beginPath();
+        const poly = [project(0, -SIDELINE, dir, scale, w, h), project(120, -SIDELINE, dir, scale, w, h), project(120, SIDELINE, dir, scale, w, h), project(0, SIDELINE, dir, scale, w, h)];
+        ctx.moveTo(poly[0]!.sx, poly[0]!.sy);
+        for (const c of poly.slice(1)) ctx.lineTo(c.sx, c.sy);
+        ctx.closePath();
+        ctx.clip();
+        ctx.globalAlpha = 0.34;
+        ctx.fillStyle = turfPat;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+      }
     }
 
     // End zones
@@ -166,6 +193,8 @@ export function createRenderer(canvas: HTMLCanvasElement) {
       }
     }
     ctx.globalAlpha = 1;
+
+    drawPosts(ctx, project, dir, scale, w, h);
 
     if (s.phase !== "menu" && s.phase !== "lobby" && s.kind !== "return") {
       const los1 = project(s.los, -SIDELINE, dir, scale, w, h);
@@ -244,89 +273,142 @@ export function createRenderer(canvas: HTMLCanvasElement) {
 
     for (const { p } of order) {
       const pos = project(p.x, p.y, dir, scale, w, h);
-      const teamColor = p.team === 0 ? ACES : KINGS;
-      const ink = p.team === 0 ? "#06221e" : "#2a0610";
       const controlled = p.id === s.ctrl[local.team] && s.human[local.team];
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      const carrier = p.id === s.ball.carrier;
+      ctx.fillStyle = "rgba(0,0,0,0.38)";
       ctx.beginPath();
-      ctx.ellipse(pos.sx, pos.sy + scale * 0.15, scale * 0.62, scale * 0.28, 0, 0, Math.PI * 2);
+      ctx.ellipse(pos.sx, pos.sy + scale * 0.08, scale * 0.55, scale * 0.22, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      const stride = Math.sin(rafT * 14 + p.id) * (Math.hypot(p.vx, p.vy) > 1 ? 1 : 0);
-      ctx.strokeStyle = ink;
-      ctx.lineWidth = Math.max(1.5, scale * 0.16);
-      ctx.beginPath();
-      ctx.moveTo(pos.sx - scale * 0.18, pos.sy);
-      ctx.lineTo(pos.sx - scale * 0.28, pos.sy + scale * (0.55 + stride * 0.15));
-      ctx.moveTo(pos.sx + scale * 0.18, pos.sy);
-      ctx.lineTo(pos.sx + scale * 0.28, pos.sy + scale * (0.55 - stride * 0.15));
-      ctx.stroke();
-
-      ctx.fillStyle = teamColor;
-      roundRect(ctx, pos.sx - scale * 0.46, pos.sy - scale * 0.42, scale * 0.92, scale * 0.7, scale * 0.2);
-      ctx.fill();
-      // shoulders
-      ctx.fillStyle = teamColor;
-      roundRect(ctx, pos.sx - scale * 0.62, pos.sy - scale * 0.38, scale * 1.24, scale * 0.36, scale * 0.12);
-      ctx.fill();
-
-      ctx.fillStyle = teamColor;
-      ctx.beginPath();
-      ctx.arc(pos.sx, pos.sy - scale * 0.62, scale * 0.34, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(7,9,12,0.55)";
-      ctx.fillRect(pos.sx - scale * 0.22, pos.sy - scale * 0.68, scale * 0.44, scale * 0.08);
-
-      ctx.fillStyle = ink;
-      ctx.font = `700 ${Math.max(8, scale * 0.42)}px Oswald, sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String(p.num), pos.sx, pos.sy - scale * 0.05);
-
-      if (controlled) {
-        ctx.strokeStyle = BONE;
-        ctx.lineWidth = 2;
+      const offense = p.team === s.poss;
+      const img =
+        p.team === 0
+          ? offense
+            ? sheets.acesBack
+            : sheets.acesFront
+          : offense
+            ? sheets.kingsBack
+            : sheets.kingsFront;
+      const moving = Math.hypot(p.vx, p.vy) > 1.1;
+      const frame = moving ? Math.floor((rafT * 9 + p.id * 0.37) % 4) : 0;
+      const cell = 128;
+      const dw = scale * (p.ol ? 1.85 : 2.05);
+      const dh = dw;
+      ctx.save();
+      ctx.translate(pos.sx, pos.sy);
+      const lean = Math.max(-0.35, Math.min(0.35, (dir * p.vy) / 14));
+      ctx.rotate(p.diving > 0 ? lean + dir * 0.7 : lean);
+      if (img.complete && img.naturalWidth >= 64) {
+        ctx.drawImage(
+          img,
+          (frame % 2) * cell,
+          Math.floor(frame / 2) * cell,
+          cell,
+          cell,
+          -dw / 2,
+          -dh + scale * 0.18,
+          dw,
+          dh,
+        );
+      } else {
+        const teamColor = p.team === 0 ? ACES : KINGS;
+        ctx.fillStyle = teamColor;
         ctx.beginPath();
-        ctx.arc(pos.sx, pos.sy - scale * 0.2, scale * 0.95 + Math.sin(rafT * 5) * 0.8, 0, Math.PI * 2);
+        ctx.ellipse(0, -scale * 0.45, scale * 0.28, scale * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      if (controlled || carrier) {
+        ctx.strokeStyle = controlled ? BONE : p.team === 0 ? ACES : KINGS;
+        ctx.globalAlpha = controlled ? 0.9 : 0.45;
+        ctx.lineWidth = controlled ? 2 : 1;
+        ctx.beginPath();
+        ctx.arc(pos.sx, pos.sy - scale * 0.7, scale * 0.95 + (controlled ? Math.sin(rafT * 5) * 0.6 : 0), 0, Math.PI * 2);
         ctx.stroke();
+        ctx.globalAlpha = 1;
+        if (controlled) {
+          ctx.fillStyle = BONE;
+          ctx.font = `700 ${Math.max(9, scale * 0.42)}px Oswald, sans-serif`;
+          ctx.textAlign = "center";
+          ctx.fillText(String(p.num), pos.sx, pos.sy + scale * 0.42);
+        }
       }
     }
 
-    // Ball
     const bx = s.ball.state === "held" && ballP ? ballP.x : s.ball.x;
     const by = s.ball.state === "held" && ballP ? ballP.y : s.ball.y;
-    const bz = s.ball.state === "held" ? 1.2 : s.ball.z;
+    const bz = s.ball.state === "held" ? 1.35 : s.ball.z;
     const bp = project(bx, by, dir, scale, w, h);
     const lift = bz * scale * 0.85;
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
-    ctx.ellipse(bp.sx, bp.sy + 2, scale * 0.28, scale * 0.12, 0, 0, Math.PI * 2);
+    ctx.ellipse(bp.sx + lift * 0.05, bp.sy + 2, scale * 0.28, scale * 0.12, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.save();
     ctx.translate(bp.sx, bp.sy - lift);
-    const ang = Math.atan2(s.ball.vy, s.ball.vx);
-    ctx.rotate(s.ball.state === "air" ? ang : rafT * 2);
-    ctx.fillStyle = BONE;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, scale * 0.34, scale * 0.2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#2a241c";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(-scale * 0.08, 0);
-    ctx.lineTo(scale * 0.08, 0);
-    ctx.stroke();
+    if (s.ball.state === "air") ctx.rotate(Math.atan2(s.ball.vy, s.ball.vx));
+    const ballImg = sheets.ball;
+    if (ballImg.complete && ballImg.naturalWidth >= 64) {
+      const bf = Math.floor(rafT * (s.ball.state === "air" ? 14 : 2)) % 4;
+      const cell = 128;
+      const bs = scale * (s.ball.state === "air" ? 0.95 : 0.72);
+      ctx.drawImage(ballImg, (bf % 2) * cell, Math.floor(bf / 2) * cell, cell, cell, -bs / 2, -bs / 2, bs, bs);
+    } else {
+      ctx.fillStyle = BONE;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, scale * 0.34, scale * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
 
     ctx.restore();
 
-    // Vignette
+    const glow = ctx.createRadialGradient(w * 0.5, 0, 10, w * 0.5, h * 0.15, h * 0.55);
+    glow.addColorStop(0, "rgba(244, 240, 230, 0.08)");
+    glow.addColorStop(1, "rgba(244, 240, 230, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+
     const vig = ctx.createRadialGradient(w / 2, h * 0.55, h * 0.2, w / 2, h * 0.5, h * 0.75);
     vig.addColorStop(0, "rgba(0,0,0,0)");
     vig.addColorStop(1, "rgba(0,0,0,0.45)");
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, w, h);
   };
+}
+
+function loadImg(src: string): HTMLImageElement {
+  const img = new Image();
+  img.decoding = "async";
+  img.src = src;
+  return img;
+}
+
+function drawPosts(
+  ctx: CanvasRenderingContext2D,
+  project: (x: number, y: number, dir: number, scale: number, w: number, h: number) => { sx: number; sy: number },
+  dir: number,
+  scale: number,
+  w: number,
+  h: number,
+) {
+  ctx.strokeStyle = "rgba(244, 240, 230, 0.78)";
+  ctx.lineWidth = Math.max(1.5, scale * 0.07);
+  ctx.lineCap = "round";
+  for (const x of [1.2, 118.8]) {
+    const left = project(x, -3.05, dir, scale, w, h);
+    const right = project(x, 3.05, dir, scale, w, h);
+    const rise = scale * 5.2;
+    ctx.beginPath();
+    ctx.moveTo(left.sx, left.sy);
+    ctx.lineTo(left.sx, left.sy - rise);
+    ctx.moveTo(right.sx, right.sy);
+    ctx.lineTo(right.sx, right.sy - rise);
+    ctx.moveTo(left.sx, left.sy - rise * 0.42);
+    ctx.lineTo(right.sx, right.sy - rise * 0.42);
+    ctx.stroke();
+  }
 }
 
 function paintZone(
@@ -364,19 +446,4 @@ function paintZone(
   ctx.globalAlpha = 1;
 }
 
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
+

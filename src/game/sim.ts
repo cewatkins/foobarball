@@ -656,7 +656,7 @@ function doPunt(s: GameState): void {
   const spot = clamp(land, FIELD_L + 8, FIELD_R - 8);
   setupReturn(s, recv, spot);
   say(s, "PUNT", `${Math.round(net)} yard kick`);
-  sfx(s, "pass");
+  sfx(s, "kick");
 }
 
 function whistleIncomplete(s: GameState): void {
@@ -1339,7 +1339,7 @@ export interface Snap {
   py: number[];
   pvx: number[];
   pvy: number[];
-  ball: [number, number, number, number, number];
+  ball: [number, number, number, number, number, number, number, number];
   sfxN: number;
   sfx: string;
   log: string[];
@@ -1351,6 +1351,8 @@ export interface Snap {
   kind: Kind;
   thrown: boolean;
   two: boolean;
+  paused: boolean;
+  chosen: [string | null, string | null];
 }
 
 const qn = (n: number) => Math.round(n * 100) / 100;
@@ -1377,7 +1379,7 @@ export function packSnap(s: GameState): Snap {
     py: s.players.map((p) => qn(p.y)),
     pvx: s.players.map((p) => qn(p.vx)),
     pvy: s.players.map((p) => qn(p.vy)),
-    ball: [qn(s.ball.x), qn(s.ball.y), qn(s.ball.z), s.ball.carrier, s.ball.state === "air" ? 1 : s.ball.state === "dead" ? 2 : 0],
+    ball: [qn(s.ball.x), qn(s.ball.y), qn(s.ball.z), s.ball.carrier, s.ball.state === "air" ? 1 : s.ball.state === "dead" ? 2 : 0, qn(s.ball.vx), qn(s.ball.vy), qn(s.ball.vz)],
     sfxN: s.sfxN,
     sfx: s.sfx,
     log: s.log.slice(0, 5),
@@ -1389,6 +1391,8 @@ export function packSnap(s: GameState): Snap {
     kind: s.kind,
     thrown: s.thrown,
     two: s.twoPt,
+    paused: s.paused,
+    chosen: [s.chosen[0], s.chosen[1]],
   };
 }
 
@@ -1421,11 +1425,16 @@ export function applySnap(s: GameState, snap: Snap): void {
   s.kind = snap.kind;
   s.thrown = snap.thrown;
   s.twoPt = snap.two;
+  s.paused = snap.paused;
+  s.chosen = snap.chosen;
   s.ball.tx = snap.ball[0];
   s.ball.ty = snap.ball[1];
   s.ball.tz = snap.ball[2];
   s.ball.carrier = snap.ball[3];
   s.ball.state = snap.ball[4] === 1 ? "air" : snap.ball[4] === 2 ? "dead" : "held";
+  s.ball.vx = snap.ball[5] ?? s.ball.vx;
+  s.ball.vy = snap.ball[6] ?? s.ball.vy;
+  s.ball.vz = snap.ball[7] ?? s.ball.vz;
   for (let i = 0; i < 22; i++) {
     const p = s.players[i]!;
     p.tx = snap.px[i] ?? p.x;
@@ -1445,14 +1454,23 @@ export function applySnap(s: GameState, snap: Snap): void {
 }
 
 export function smoothGuest(s: GameState, dt: number): void {
-  const k = Math.min(1, dt * 12);
+  const k = Math.min(1, dt * 10);
   for (const p of s.players) {
-    p.x += (p.tx - p.x) * k;
-    p.y += (p.ty - p.y) * k;
+    const px = p.x + p.vx * dt;
+    const py = p.y + p.vy * dt;
+    p.x = px + (p.tx - px) * k;
+    p.y = py + (p.ty - py) * k;
   }
-  s.ball.x += (s.ball.tx - s.ball.x) * k;
-  s.ball.y += (s.ball.ty - s.ball.y) * k;
-  s.ball.z += (s.ball.tz - s.ball.z) * k;
+  if (s.ball.state === "air") {
+    s.ball.x += s.ball.vx * dt;
+    s.ball.y += s.ball.vy * dt;
+    s.ball.z = Math.max(0, s.ball.z + s.ball.vz * dt);
+    s.ball.vz -= 30 * dt;
+  }
+  const bk = s.ball.state === "air" ? Math.min(1, dt * 6) : k;
+  s.ball.x += (s.ball.tx - s.ball.x) * bk;
+  s.ball.y += (s.ball.ty - s.ball.y) * bk;
+  s.ball.z += (s.ball.tz - s.ball.z) * bk;
 }
 
 export function openTarget(s: GameState): number {

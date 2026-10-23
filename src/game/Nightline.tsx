@@ -4,7 +4,7 @@ import { useP2PRoom } from "@/lib/multiplayer/use-p2p-room";
 import type { PeerInfo } from "@/lib/multiplayer";
 import { DEFENSE, KICKS, OFFENSE, offById, defById, suggestDef, suggestOff } from "./plays";
 import { createRenderer } from "./render";
-import { isMuted, playSfx, resumeAudio, setMuted, unlockAudio } from "./audio";
+import { isMuted, playSfx, resumeAudio, setCrowdBed, setMuted, tickAudio, unlockAudio } from "./audio";
 import {
   applySnap,
   armOnline,
@@ -56,6 +56,8 @@ interface Hud {
   firstPct: number;
   carrierIsQb: boolean;
   group: "run" | "pass" | "return";
+  online: boolean;
+  ready: [boolean, boolean];
 }
 
 function readHud(s: GameState): Hud {
@@ -91,6 +93,8 @@ function readHud(s: GameState): Hud {
     firstPct: Math.max(0, Math.min(100, firstX - 10)),
     carrierIsQb: !!carrier && carrier.idx === 0 && carrier.team === s.poss,
     group,
+    online: s.online,
+    ready: [s.chosen[0] != null, s.chosen[1] != null],
   };
 }
 
@@ -114,6 +118,8 @@ export function Nightline() {
   const remote = useRef<Pad>(neutralPad());
   const net = useRef<{ broadcast: (d: unknown) => void; send: (d: unknown, id?: string) => void } | null>(null);
   const lastSfx = useRef(0);
+  const phaseHold = useRef<Phase>("menu");
+  const flushNet = useRef(false);
   const [hud, setHud] = useState<Hud>(() => readHud(sim.current));
   const [screen, setScreen] = useState<"menu" | "link" | "play" | "booth">("menu");
   const [sharp, setSharp] = useState(false);
@@ -122,9 +128,16 @@ export function Nightline() {
   const [picked, setPicked] = useState<string | null>(null);
   const [booth, setBooth] = useState<{ code: string; home: boolean } | null>(null);
   const [linkLost, setLinkLost] = useState(false);
+  const [linkNote, setLinkNote] = useState("");
+  const [guestReady, setGuestReady] = useState(false);
+  const [rematchAsk, setRematchAsk] = useState(false);
+  const [asked, setAsked] = useState(false);
   const homeRef = useRef(false);
 
   const push = useCallback(() => setHud(readHud(sim.current)), []);
+  const onPeer = useCallback((up: boolean) => {
+    if (!up) setGuestReady(false);
+  }, []);
 
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
@@ -137,6 +150,8 @@ export function Nightline() {
         if (s.phase !== "menu" && s.phase !== "lobby") {
           s.paused = !s.paused;
           setPaused(s.paused);
+          flushNet.current = true;
+          if (s.online && s.myTeam === 1) net.current?.send({ k: "pause", on: s.paused });
         }
         return;
       }
@@ -238,9 +253,17 @@ export function Nightline() {
         remote.current.throwTo = null;
       }
       if (!s.simLocal) smoothGuest(s, dt);
+      setCrowdBed(s.phase === "live" ? 0.4 : s.phase === "menu" || s.phase === "lobby" ? 0.08 : 0.18);
+      tickAudio(dt);
       if (s.simLocal && s.sfxN !== lastSfx.current) {
         lastSfx.current = s.sfxN;
         playSfx(s.sfx);
+        flushNet.current = true;
+      }
+      if (s.online && s.simLocal && (flushNet.current || s.phase !== phaseHold.current)) {
+        phaseHold.current = s.phase;
+        flushNet.current = false;
+        sendAcc = 1;
       }
       draw(s, dt, { team: s.myTeam });
       const link = net.current;
@@ -303,14 +326,21 @@ export function Nightline() {
     if (s.phase !== "call") return;
     setPicked(id);
     if (s.online && s.myTeam === 1) net.current?.send({ k: "call", id });
-    else choosePlay(s, s.myTeam, id);
+    else {
+      choosePlay(s, s.myTeam, id);
+      flushNet.current = true;
+    }
     push();
   }
 
   function onKickMeter(acc: number) {
+    playSfx("kick");
     const s = sim.current;
     if (s.online && s.myTeam === 1) net.current?.send({ k: "kick", acc });
-    else resolveKick(s, acc);
+    else {
+      resolveKick(s, acc);
+      flushNet.current = true;
+    }
     push();
   }
 
@@ -324,6 +354,10 @@ export function Nightline() {
     setScreen("menu");
     setPaused(false);
     setLinkLost(false);
+    setGuestReady(false);
+    setRematchAsk(false);
+    setAsked(false);
+    setLinkNote("");
     push();
   }
 
@@ -340,12 +374,15 @@ export function Nightline() {
       switch?: boolean;
       throwTo?: number | null;
       mode?: string;
+      on?: boolean;
     };
     const s = sim.current;
     if (!homeRef.current && msg.k === "st") {
+      const wasPaused = s.paused;
       const before = s.sfxN;
       applySnap(s, data as Snap);
       if (s.sfxN !== before) playSfx(s.sfx);
+      if (s.paused !== wasPaused) setPaused(s.paused);
       return;
     }
     if (homeRef.current && msg.k === "in") {
@@ -359,8 +396,11 @@ export function Nightline() {
       remote.current.throwTo = msg.throwTo ?? null;
     } else if (homeRef.current && msg.k === "call" && msg.id) {
       choosePlay(s, 1, msg.id);
+      flushNet.current = true;
     } else if (homeRef.current && msg.k === "kick" && typeof msg.acc === "number") {
+      playSfx("kick");
       resolveKick(s, msg.acc);
+      flushNet.current = true;
     } else if (homeRef.current && msg.k === "pat") {
       if (msg.mode === "two") {
         s.patTeam = 1;
@@ -368,6 +408,15 @@ export function Nightline() {
       } else {
         startKick(s, 1, "xp");
       }
+      flushNet.current = true;
+    } else if (homeRef.current && msg.k === "pause") {
+      s.paused = !!msg.on;
+      setPaused(s.paused);
+      flushNet.current = true;
+    } else if (homeRef.current && msg.k === "ready") {
+      setGuestReady(true);
+    } else if (homeRef.current && msg.k === "rematch") {
+      setRematchAsk(true);
     }
   }, []);
 
@@ -405,8 +454,13 @@ export function Nightline() {
             onPause={() => {
               sim.current.paused = true;
               setPaused(true);
+              flushNet.current = true;
+              if (sim.current.online && sim.current.myTeam === 1) net.current?.send({ k: "pause", on: true });
             }}
           />
+        )}
+        {booth && hud.phase !== "menu" && hud.phase !== "lobby" && linkNote && (
+          <p className="pointer-events-none px-3 text-xs text-muted">{linkNote}</p>
         )}
 
         {hud.banner && hud.phase !== "menu" && hud.phase !== "call" && (
@@ -438,6 +492,9 @@ export function Nightline() {
               setBooth({ code, home: true });
               setScreen("booth");
               setLinkLost(false);
+              setGuestReady(false);
+              setRematchAsk(false);
+              setAsked(false);
               push();
             }}
             onJoin={(code) => {
@@ -447,6 +504,9 @@ export function Nightline() {
               setBooth({ code, home: false });
               setScreen("booth");
               setLinkLost(false);
+              setGuestReady(false);
+              setRematchAsk(false);
+              setAsked(false);
               push();
             }}
           />
@@ -461,9 +521,13 @@ export function Nightline() {
             onMessage={onNet}
             onKick={() => {
               hostKickoff(sim.current);
+              flushNet.current = true;
               push();
             }}
             onLost={() => setLinkLost(true)}
+            onLink={setLinkNote}
+            guestReady={guestReady}
+            onPeer={onPeer}
           />
         )}
 
@@ -551,7 +615,24 @@ export function Nightline() {
         )}
 
         {hud.phase === "final" && (
-          <Final hud={hud} onAgain={() => { if (sim.current.online && homeRef.current) { hostKickoff(sim.current); push(); } else if (!sim.current.online) startSolo(); }} onQuit={quit} />
+          <Final
+            hud={hud}
+            ask={rematchAsk}
+            asked={asked}
+            onAgain={() => {
+              if (sim.current.online && homeRef.current) {
+                setRematchAsk(false);
+                setAsked(false);
+                hostKickoff(sim.current);
+                flushNet.current = true;
+                push();
+              } else if (sim.current.online) {
+                net.current?.send({ k: "rematch" });
+                setAsked(true);
+              } else startSolo();
+            }}
+            onQuit={quit}
+          />
         )}
 
         {linkLost && (
@@ -570,8 +651,14 @@ export function Nightline() {
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-bg/80 px-4">
             <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-5">
               <h2 className="font-display text-3xl">Paused</h2>
+              <p className="mt-1 text-sm text-muted">{hud.online ? "Held for both of you." : "Take a breath."}</p>
               <div className="mt-4 flex gap-2">
-                <button type="button" className="h-12 flex-1 rounded-xl bg-aces font-display text-lg text-bg" onClick={() => { sim.current.paused = false; setPaused(false); }}>
+                <button type="button" className="h-12 flex-1 rounded-xl bg-aces font-display text-lg text-bg" onClick={() => {
+                  sim.current.paused = false;
+                  setPaused(false);
+                  flushNet.current = true;
+                  if (sim.current.online && sim.current.myTeam === 1) net.current?.send({ k: "pause", on: false });
+                }}>
                   Resume
                 </button>
                 <button type="button" className="h-12 flex-1 rounded-xl border border-line" onClick={quit}>
@@ -708,6 +795,9 @@ function Online({
   onMessage,
   onKick,
   onLost,
+  onLink,
+  onPeer,
+  guestReady,
 }: {
   room: string;
   home: boolean;
@@ -716,9 +806,13 @@ function Online({
   onMessage: (data: unknown) => void;
   onKick: () => void;
   onLost: () => void;
+  onLink: (note: string) => void;
+  onPeer: (up: boolean) => void;
+  guestReady: boolean;
 }) {
   const p2p = useP2PRoom({ room, name: home ? "Aces" : "Kings" });
   const seen = useRef(false);
+  const [readySent, setReadySent] = useState(false);
   useEffect(() => {
     netRef.current = { broadcast: p2p.broadcast, send: p2p.send };
   }, [netRef, p2p.broadcast, p2p.send]);
@@ -726,11 +820,19 @@ function Online({
   useEffect(() => {
     const up = p2p.peers.some((p) => p.connectionState === "connected");
     if (up) seen.current = true;
+    onPeer(up);
     if (seen.current && p2p.joined && !up && hud.phase !== "lobby" && hud.phase !== "menu") onLost();
-  }, [p2p.peers, p2p.joined, hud.phase, onLost]);
+    const peer = p2p.peers[0];
+    if (!p2p.joined) onLink("Opening the booth…");
+    else if (!peer) onLink("Waiting for the other coach");
+    else if (peer.connectionState === "connected") onLink(peer.rttMs ? `Linked · ${peer.rttMs} ms` : "Linked");
+    else if (peer.connectionState === "failed") onLink("Direct link failed");
+    else onLink("Connecting…");
+  }, [p2p.peers, p2p.joined, hud.phase, onLost, onLink, onPeer]);
 
   if (hud.phase !== "lobby") return null;
   const peer = p2p.peers[0];
+  const linked = !!peer && peer.connectionState === "connected";
   return (
     <div className="absolute inset-x-0 bottom-0 flex justify-center px-4 pb-6">
       <div className="w-full max-w-md rounded-2xl border border-line bg-bg/90 p-5">
@@ -739,7 +841,7 @@ function Online({
         <button
           type="button"
           className="mt-2 inline-flex items-center gap-2 text-sm text-aces"
-          onClick={() => void navigator.clipboard?.writeText(room)}
+          onClick={() => void navigator.clipboard?.writeText(`Nightline booth ${room}`)}
         >
           <Copy className="size-4" />
           Copy code
@@ -748,14 +850,24 @@ function Online({
         {home ? (
           <button
             type="button"
-            disabled={!peer || peer.connectionState !== "connected"}
+            disabled={!linked || !guestReady}
             className="mt-4 h-12 w-full rounded-xl bg-aces font-display text-lg text-bg disabled:opacity-40"
             onClick={onKick}
           >
-            Kick off
+            {guestReady ? "Kick off" : "Waiting for Kings"}
           </button>
         ) : (
-          <p className="mt-4 text-sm text-muted">Waiting for Ridge to kick off.</p>
+          <button
+            type="button"
+            disabled={!linked || readySent}
+            className="mt-4 h-12 w-full rounded-xl bg-kings font-display text-lg text-bg disabled:opacity-40"
+            onClick={() => {
+              netRef.current?.send({ k: "ready" });
+              setReadySent(true);
+            }}
+          >
+            {readySent ? "Ready — waiting on the kick" : "Ready up"}
+          </button>
         )}
       </div>
     </div>
@@ -821,11 +933,26 @@ function CallSheet({ offense, hud, picked, onPick }: { offense: boolean; hud: Hu
   const dist = hud.poss === 0 ? 100 - hud.losPct : hud.losPct;
   const suggested = offense ? suggestOff(hud.downN, hud.toGo, dist) : suggestDef(hud.downN, hud.toGo, dist);
   const plays = offense ? OFFENSE : DEFENSE;
+  const theirs = hud.ready[hud.myTeam === 0 ? 1 : 0];
+  const foe = hud.poss === 0 ? "the Aces" : "the Kings";
+  const status = !hud.online
+    ? offense
+      ? "You have the ball"
+      : `Stop ${foe}`
+    : picked && !theirs
+      ? "Call sent · waiting on them"
+      : !picked && theirs
+        ? offense
+          ? "They're set · your call"
+          : "They're set · pick a coverage"
+        : offense
+          ? "You have the ball"
+          : `Stop ${foe}`;
   return (
     <div className="call-sheet overflow-y-auto px-3 pb-4">
       <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between">
         <p className="font-display text-lg">{offense ? "Offense" : "Defense"}</p>
-        <p className="text-xs text-muted">{offense ? "You have the ball" : "Stop the Aces"}</p>
+        <p className="text-xs text-muted">{status}</p>
       </div>
       {offense && hud.downN === 4 && !hud.two && (
         <div className="mx-auto mb-2 grid max-w-3xl grid-cols-2 gap-2">
@@ -997,7 +1124,7 @@ function Meter({ dist, label, onKick }: { dist: number; label: string; onKick: (
   );
 }
 
-function Final({ hud, onAgain, onQuit }: { hud: Hud; onAgain: () => void; onQuit: () => void }) {
+function Final({ hud, ask, asked, onAgain, onQuit }: { hud: Hud; ask: boolean; asked: boolean; onAgain: () => void; onQuit: () => void }) {
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center bg-bg/75 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-5 text-center">
@@ -1006,13 +1133,15 @@ function Final({ hud, onAgain, onQuit }: { hud: Hud; onAgain: () => void; onQuit
           {hud.score[0]}<span className="text-muted">–</span>{hud.score[1]}
         </p>
         <p className="mt-1 text-sm text-aces">{hud.endNote}</p>
+        {ask && <p className="mt-2 text-sm text-kings">They want another kickoff.</p>}
+        {asked && <p className="mt-2 text-sm text-muted">Rematch sent. Waiting on the host.</p>}
         <div className="mt-4 grid grid-cols-2 gap-2 text-left text-xs text-muted">
           <span>Aces on the board</span>
           <span className="text-right">Kings on the board</span>
         </div>
         <div className="mt-4 flex gap-2">
-          <button type="button" className="h-12 flex-1 rounded-xl bg-aces font-display text-bg" onClick={onAgain}>
-            Rematch
+          <button type="button" className="h-12 flex-1 rounded-xl bg-aces font-display text-bg" onClick={onAgain} disabled={asked}>
+            {ask ? "Kick it off" : asked ? "Asked" : "Rematch"}
           </button>
           <button type="button" className="h-12 flex-1 rounded-xl border border-line" onClick={onQuit}>
             Menu

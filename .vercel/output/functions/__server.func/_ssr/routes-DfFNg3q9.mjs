@@ -1,7 +1,7 @@
 import { o as __toESM } from "../_runtime.mjs";
 import { K as require_react, b as require_jsx_runtime } from "../_libs/@tanstack/react-router+[...].mjs";
 import { a as Play, c as Copy, i as Shield, n as Volume2, o as Pause, s as Link2, t as VolumeX } from "../_libs/lucide-react.mjs";
-//#region node_modules/.nitro/vite/services/ssr/assets/routes-DQlNooyn.js
+//#region node_modules/.nitro/vite/services/ssr/assets/routes-DfFNg3q9.js
 var import_react = /* @__PURE__ */ __toESM(require_react());
 var import_jsx_runtime = require_jsx_runtime();
 var FAST_POLL_MS = 400;
@@ -1804,12 +1804,22 @@ var KINGS = "#ff5d73";
 var BONE = "#f4f0e6";
 var LINE = "rgba(223, 236, 228, 0.34)";
 function createRenderer(canvas) {
-	const crowd = Array.from({ length: 220 }, () => ({
+	const crowd = Array.from({ length: 280 }, () => ({
 		x: Math.random(),
 		y: Math.random(),
-		r: .6 + Math.random() * 1.8,
-		a: .12 + Math.random() * .4
+		r: .7 + Math.random() * 2.2,
+		a: .15 + Math.random() * .45,
+		c: Math.random() < .5 ? "180, 230, 214" : "255, 170, 184"
 	}));
+	const sheets = {
+		acesBack: loadImg("/sprites/aces-back.png"),
+		acesFront: loadImg("/sprites/aces-front.png"),
+		kingsBack: loadImg("/sprites/kings-back.png"),
+		kingsFront: loadImg("/sprites/kings-front.png"),
+		ball: loadImg("/sprites/ball.png"),
+		turf: loadImg("/sprites/turf.jpg")
+	};
+	let turfPat = null;
 	let camX = 60;
 	let camY = 0;
 	let zoom = 0;
@@ -1859,8 +1869,8 @@ function createRenderer(canvas) {
 		ctx.fillStyle = grd;
 		ctx.fillRect(0, 0, w, standH);
 		for (const c of crowd) {
-			ctx.fillStyle = `rgba(180, 210, 200, ${c.a * .45})`;
-			ctx.fillRect(c.x * w, 8 + c.y * (standH - 16), c.r, c.r + 1);
+			ctx.fillStyle = `rgba(${c.c}, ${c.a * .55})`;
+			ctx.fillRect(c.x * w, 8 + c.y * (standH - 16), c.r, c.r + 2);
 		}
 		ctx.fillStyle = "rgba(46, 230, 199, 0.05)";
 		ctx.beginPath();
@@ -1878,6 +1888,27 @@ function createRenderer(canvas) {
 			const b = project(x + 5, 32, dir, scale, w, h);
 			ctx.fillStyle = x / 5 % 2 === 0 ? TURF_A : TURF_B;
 			ctx.fillRect(Math.min(a.sx, b.sx) - 40, Math.min(a.sy, b.sy), Math.abs(b.sx - a.sx) + 80, Math.abs(b.sy - a.sy));
+		}
+		if (sheets.turf.complete && sheets.turf.naturalWidth > 0) {
+			turfPat ??= ctx.createPattern(sheets.turf, "repeat");
+			if (turfPat) {
+				ctx.save();
+				ctx.beginPath();
+				const poly = [
+					project(0, -SIDELINE, dir, scale, w, h),
+					project(120, -SIDELINE, dir, scale, w, h),
+					project(120, SIDELINE, dir, scale, w, h),
+					project(0, SIDELINE, dir, scale, w, h)
+				];
+				ctx.moveTo(poly[0].sx, poly[0].sy);
+				for (const c of poly.slice(1)) ctx.lineTo(c.sx, c.sy);
+				ctx.closePath();
+				ctx.clip();
+				ctx.globalAlpha = .34;
+				ctx.fillStyle = turfPat;
+				ctx.fillRect(0, 0, w, h);
+				ctx.restore();
+			}
 		}
 		paintZone(ctx, project, dir, scale, w, h, 0, 10, ACES, "ACES");
 		paintZone(ctx, project, dir, scale, w, h, 110, 120, KINGS, "KINGS");
@@ -1925,6 +1956,7 @@ function createRenderer(canvas) {
 			ctx.fillRect(p.sx - scale * .18, p.sy, scale * .36, Math.max(1, scale * .08));
 		}
 		ctx.globalAlpha = 1;
+		drawPosts(ctx, project, dir, scale, w, h);
 		if (s.phase !== "menu" && s.phase !== "lobby" && s.kind !== "return") {
 			const los1 = project(s.los, -SIDELINE, dir, scale, w, h);
 			const los2 = project(s.los, SIDELINE, dir, scale, w, h);
@@ -1999,78 +2031,107 @@ function createRenderer(canvas) {
 		})).sort((a, b) => a.sy - b.sy);
 		for (const { p } of order) {
 			const pos = project(p.x, p.y, dir, scale, w, h);
-			const teamColor = p.team === 0 ? ACES : KINGS;
-			const ink = p.team === 0 ? "#06221e" : "#2a0610";
 			const controlled = p.id === s.ctrl[local.team] && s.human[local.team];
-			ctx.fillStyle = "rgba(0,0,0,0.35)";
+			const carrier = p.id === s.ball.carrier;
+			ctx.fillStyle = "rgba(0,0,0,0.38)";
 			ctx.beginPath();
-			ctx.ellipse(pos.sx, pos.sy + scale * .15, scale * .62, scale * .28, 0, 0, Math.PI * 2);
+			ctx.ellipse(pos.sx, pos.sy + scale * .08, scale * .55, scale * .22, 0, 0, Math.PI * 2);
 			ctx.fill();
-			const stride = Math.sin(rafT * 14 + p.id) * (Math.hypot(p.vx, p.vy) > 1 ? 1 : 0);
-			ctx.strokeStyle = ink;
-			ctx.lineWidth = Math.max(1.5, scale * .16);
-			ctx.beginPath();
-			ctx.moveTo(pos.sx - scale * .18, pos.sy);
-			ctx.lineTo(pos.sx - scale * .28, pos.sy + scale * (.55 + stride * .15));
-			ctx.moveTo(pos.sx + scale * .18, pos.sy);
-			ctx.lineTo(pos.sx + scale * .28, pos.sy + scale * (.55 - stride * .15));
-			ctx.stroke();
-			ctx.fillStyle = teamColor;
-			roundRect(ctx, pos.sx - scale * .46, pos.sy - scale * .42, scale * .92, scale * .7, scale * .2);
-			ctx.fill();
-			ctx.fillStyle = teamColor;
-			roundRect(ctx, pos.sx - scale * .62, pos.sy - scale * .38, scale * 1.24, scale * .36, scale * .12);
-			ctx.fill();
-			ctx.fillStyle = teamColor;
-			ctx.beginPath();
-			ctx.arc(pos.sx, pos.sy - scale * .62, scale * .34, 0, Math.PI * 2);
-			ctx.fill();
-			ctx.fillStyle = "rgba(7,9,12,0.55)";
-			ctx.fillRect(pos.sx - scale * .22, pos.sy - scale * .68, scale * .44, scale * .08);
-			ctx.fillStyle = ink;
-			ctx.font = `700 ${Math.max(8, scale * .42)}px Oswald, sans-serif`;
-			ctx.textAlign = "center";
-			ctx.textBaseline = "middle";
-			ctx.fillText(String(p.num), pos.sx, pos.sy - scale * .05);
-			if (controlled) {
-				ctx.strokeStyle = BONE;
-				ctx.lineWidth = 2;
+			const offense = p.team === s.poss;
+			const img = p.team === 0 ? offense ? sheets.acesBack : sheets.acesFront : offense ? sheets.kingsBack : sheets.kingsFront;
+			const frame = Math.hypot(p.vx, p.vy) > 1.1 ? Math.floor((rafT * 9 + p.id * .37) % 4) : 0;
+			const cell = 128;
+			const dw = scale * (p.ol ? 1.85 : 2.05);
+			const dh = dw;
+			ctx.save();
+			ctx.translate(pos.sx, pos.sy);
+			const lean = Math.max(-.35, Math.min(.35, dir * p.vy / 14));
+			ctx.rotate(p.diving > 0 ? lean + dir * .7 : lean);
+			if (img.complete && img.naturalWidth >= 64) ctx.drawImage(img, frame % 2 * cell, Math.floor(frame / 2) * cell, cell, cell, -dw / 2, -dh + scale * .18, dw, dh);
+			else {
+				ctx.fillStyle = p.team === 0 ? ACES : KINGS;
 				ctx.beginPath();
-				ctx.arc(pos.sx, pos.sy - scale * .2, scale * .95 + Math.sin(rafT * 5) * .8, 0, Math.PI * 2);
+				ctx.ellipse(0, -scale * .45, scale * .28, scale * .55, 0, 0, Math.PI * 2);
+				ctx.fill();
+			}
+			ctx.restore();
+			if (controlled || carrier) {
+				ctx.strokeStyle = controlled ? BONE : p.team === 0 ? ACES : KINGS;
+				ctx.globalAlpha = controlled ? .9 : .45;
+				ctx.lineWidth = controlled ? 2 : 1;
+				ctx.beginPath();
+				ctx.arc(pos.sx, pos.sy - scale * .7, scale * .95 + (controlled ? Math.sin(rafT * 5) * .6 : 0), 0, Math.PI * 2);
 				ctx.stroke();
+				ctx.globalAlpha = 1;
+				if (controlled) {
+					ctx.fillStyle = BONE;
+					ctx.font = `700 ${Math.max(9, scale * .42)}px Oswald, sans-serif`;
+					ctx.textAlign = "center";
+					ctx.fillText(String(p.num), pos.sx, pos.sy + scale * .42);
+				}
 			}
 		}
 		const bx = s.ball.state === "held" && ballP ? ballP.x : s.ball.x;
 		const by = s.ball.state === "held" && ballP ? ballP.y : s.ball.y;
-		const bz = s.ball.state === "held" ? 1.2 : s.ball.z;
+		const bz = s.ball.state === "held" ? 1.35 : s.ball.z;
 		const bp = project(bx, by, dir, scale, w, h);
 		const lift = bz * scale * .85;
-		ctx.fillStyle = "rgba(0,0,0,0.3)";
+		ctx.fillStyle = "rgba(0,0,0,0.35)";
 		ctx.beginPath();
-		ctx.ellipse(bp.sx, bp.sy + 2, scale * .28, scale * .12, 0, 0, Math.PI * 2);
+		ctx.ellipse(bp.sx + lift * .05, bp.sy + 2, scale * .28, scale * .12, 0, 0, Math.PI * 2);
 		ctx.fill();
 		ctx.save();
 		ctx.translate(bp.sx, bp.sy - lift);
-		const ang = Math.atan2(s.ball.vy, s.ball.vx);
-		ctx.rotate(s.ball.state === "air" ? ang : rafT * 2);
-		ctx.fillStyle = BONE;
-		ctx.beginPath();
-		ctx.ellipse(0, 0, scale * .34, scale * .2, 0, 0, Math.PI * 2);
-		ctx.fill();
-		ctx.strokeStyle = "#2a241c";
-		ctx.lineWidth = 1;
-		ctx.beginPath();
-		ctx.moveTo(-scale * .08, 0);
-		ctx.lineTo(scale * .08, 0);
-		ctx.stroke();
+		if (s.ball.state === "air") ctx.rotate(Math.atan2(s.ball.vy, s.ball.vx));
+		const ballImg = sheets.ball;
+		if (ballImg.complete && ballImg.naturalWidth >= 64) {
+			const bf = Math.floor(rafT * (s.ball.state === "air" ? 14 : 2)) % 4;
+			const cell = 128;
+			const bs = scale * (s.ball.state === "air" ? .95 : .72);
+			ctx.drawImage(ballImg, bf % 2 * cell, Math.floor(bf / 2) * cell, cell, cell, -bs / 2, -bs / 2, bs, bs);
+		} else {
+			ctx.fillStyle = BONE;
+			ctx.beginPath();
+			ctx.ellipse(0, 0, scale * .34, scale * .2, 0, 0, Math.PI * 2);
+			ctx.fill();
+		}
 		ctx.restore();
 		ctx.restore();
+		const glow = ctx.createRadialGradient(w * .5, 0, 10, w * .5, h * .15, h * .55);
+		glow.addColorStop(0, "rgba(244, 240, 230, 0.08)");
+		glow.addColorStop(1, "rgba(244, 240, 230, 0)");
+		ctx.fillStyle = glow;
+		ctx.fillRect(0, 0, w, h);
 		const vig = ctx.createRadialGradient(w / 2, h * .55, h * .2, w / 2, h * .5, h * .75);
 		vig.addColorStop(0, "rgba(0,0,0,0)");
 		vig.addColorStop(1, "rgba(0,0,0,0.45)");
 		ctx.fillStyle = vig;
 		ctx.fillRect(0, 0, w, h);
 	};
+}
+function loadImg(src) {
+	const img = new Image();
+	img.decoding = "async";
+	img.src = src;
+	return img;
+}
+function drawPosts(ctx, project, dir, scale, w, h) {
+	ctx.strokeStyle = "rgba(244, 240, 230, 0.78)";
+	ctx.lineWidth = Math.max(1.5, scale * .07);
+	ctx.lineCap = "round";
+	for (const x of [1.2, 118.8]) {
+		const left = project(x, -3.05, dir, scale, w, h);
+		const right = project(x, 3.05, dir, scale, w, h);
+		const rise = scale * 5.2;
+		ctx.beginPath();
+		ctx.moveTo(left.sx, left.sy);
+		ctx.lineTo(left.sx, left.sy - rise);
+		ctx.moveTo(right.sx, right.sy);
+		ctx.lineTo(right.sx, right.sy - rise);
+		ctx.moveTo(left.sx, left.sy - rise * .42);
+		ctx.lineTo(right.sx, right.sy - rise * .42);
+		ctx.stroke();
+	}
 }
 function paintZone(ctx, project, dir, scale, w, h, x0, x1, color, label) {
 	const corners = [
@@ -2095,23 +2156,17 @@ function paintZone(ctx, project, dir, scale, w, h, x0, x1, color, label) {
 	ctx.fillText(label, mid.sx, mid.sy);
 	ctx.globalAlpha = 1;
 }
-function roundRect(ctx, x, y, w, h, r) {
-	ctx.beginPath();
-	ctx.moveTo(x + r, y);
-	ctx.arcTo(x + w, y, x + w, y + h, r);
-	ctx.arcTo(x + w, y + h, x, y + h, r);
-	ctx.arcTo(x, y + h, x, y, r);
-	ctx.arcTo(x, y, x + w, y, r);
-	ctx.closePath();
-}
 var ctx = null;
 var master = null;
 var sfxBus = null;
 var crowdBus = null;
+var cheer = null;
 var noiseBuf = null;
-var crowdSrc = null;
+var started = false;
 var muted = false;
-var volume = .8;
+var volume = .85;
+var energy = .12;
+var target = .12;
 function curve(v) {
 	return v * v;
 }
@@ -2124,13 +2179,20 @@ function ensure() {
 		master = ctx.createGain();
 		sfxBus = ctx.createGain();
 		crowdBus = ctx.createGain();
+		sfxBus.gain.value = .9;
+		crowdBus.gain.value = .85;
 		sfxBus.connect(master);
 		crowdBus.connect(master);
 		master.connect(ctx.destination);
 		master.gain.value = muted ? 0 : curve(volume);
 		const n = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
 		const data = n.getChannelData(0);
-		for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+		let b = 0;
+		for (let i = 0; i < data.length; i++) {
+			const w = Math.random() * 2 - 1;
+			b = b * .96 + w * .04;
+			data[i] = w * .65 + b * 6;
+		}
 		noiseBuf = n;
 	}
 	return ctx;
@@ -2147,40 +2209,75 @@ function setMuted(next) {
 function isMuted() {
 	return muted;
 }
-function startCrowd() {
-	if (!ctx || !noiseBuf || !crowdBus || crowdSrc) return;
-	const src = ctx.createBufferSource();
-	src.buffer = noiseBuf;
-	src.loop = true;
-	const filter = ctx.createBiquadFilter();
-	filter.type = "lowpass";
-	filter.frequency.value = 420;
-	const g = ctx.createGain();
-	g.gain.value = .018;
-	src.connect(filter);
-	filter.connect(g);
-	g.connect(crowdBus);
-	src.start();
-	crowdSrc = src;
+function resumeAudio() {
+	if (ctx && ctx.state === "suspended") ctx.resume();
 }
-function envGain(at, peak, dur) {
+/** 0 idle stands, 1 a full roar. Decays toward the phase bed. */
+function pumpCrowd(n) {
+	energy = Math.max(energy, Math.max(0, Math.min(1, n)));
+}
+function setCrowdBed(n) {
+	target = Math.max(.04, Math.min(.55, n));
+}
+function tickAudio(dt) {
+	if (!ctx || !cheer) return;
+	energy += (target - energy) * Math.min(1, dt * 1.4);
+	cheer.gain.setTargetAtTime(.012 + energy * .16, ctx.currentTime, .06);
+}
+function startCrowd() {
+	if (!ctx || !noiseBuf || !crowdBus || started) return;
+	started = true;
+	const bed = ctx.createBufferSource();
+	bed.buffer = noiseBuf;
+	bed.loop = true;
+	const low = ctx.createBiquadFilter();
+	low.type = "lowpass";
+	low.frequency.value = 520;
+	const bedGain = ctx.createGain();
+	bedGain.gain.value = .045;
+	bed.connect(low);
+	low.connect(bedGain);
+	bedGain.connect(crowdBus);
+	bed.start();
+	const roar = ctx.createBufferSource();
+	roar.buffer = noiseBuf;
+	roar.loop = true;
+	const mid = ctx.createBiquadFilter();
+	mid.type = "bandpass";
+	mid.frequency.value = 1400;
+	mid.Q.value = .55;
+	cheer = ctx.createGain();
+	cheer.gain.value = .02;
+	roar.connect(mid);
+	mid.connect(cheer);
+	cheer.connect(crowdBus);
+	roar.start();
+	const lfo = ctx.createOscillator();
+	lfo.frequency.value = .18;
+	const lfoGain = ctx.createGain();
+	lfoGain.gain.value = 90;
+	lfo.connect(lfoGain);
+	lfoGain.connect(mid.frequency);
+	lfo.start();
+}
+function envGain(at, peak, dur, attack = .012) {
 	if (!ctx || !sfxBus) return null;
 	const g = ctx.createGain();
 	g.connect(sfxBus);
 	g.gain.setValueAtTime(1e-4, at);
-	g.gain.exponentialRampToValueAtTime(Math.max(.001, peak), at + .015);
+	g.gain.exponentialRampToValueAtTime(Math.max(.001, peak), at + attack);
 	g.gain.exponentialRampToValueAtTime(1e-4, at + dur);
 	return g;
 }
-function tone(freq, dur, type, peak, slide = 0) {
+function tone(freq, dur, type, peak, slide = 0, attack = .012) {
 	if (!ctx) return;
 	const at = ctx.currentTime;
-	const g = envGain(at, peak, dur);
+	const g = envGain(at, peak, dur, attack);
 	if (!g) return;
 	const o = ctx.createOscillator();
 	o.type = type;
-	o.frequency.setValueAtTime(freq, at);
-	if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), at + dur);
+	o.frequency.setValueAtTime(Math.max(40, freq), at);
+	if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), at + dur * .9);
 	o.connect(g);
 	o.start(at);
 	o.stop(at + dur + .02);
@@ -2189,17 +2286,17 @@ function tone(freq, dur, type, peak, slide = 0) {
 		g.disconnect();
 	};
 }
-function burst(dur, peak, freq) {
+function burst(dur, peak, freq, q = .7, type = "bandpass") {
 	if (!ctx || !noiseBuf) return;
 	const at = ctx.currentTime;
-	const g = envGain(at, peak, dur);
+	const g = envGain(at, peak, dur, .006);
 	if (!g) return;
 	const src = ctx.createBufferSource();
 	src.buffer = noiseBuf;
 	const filter = ctx.createBiquadFilter();
-	filter.type = "bandpass";
+	filter.type = type;
 	filter.frequency.value = freq;
-	filter.Q.value = .7;
+	filter.Q.value = q;
 	src.connect(filter);
 	filter.connect(g);
 	src.start(at);
@@ -2210,58 +2307,112 @@ function burst(dur, peak, freq) {
 		g.disconnect();
 	};
 }
+function whistle() {
+	if (!ctx) return;
+	const at = ctx.currentTime;
+	const g = envGain(at, .07, .42, .03);
+	if (!g) return;
+	const a = ctx.createOscillator();
+	const b = ctx.createOscillator();
+	a.type = "sine";
+	b.type = "sine";
+	a.frequency.setValueAtTime(3180, at);
+	b.frequency.setValueAtTime(3340, at);
+	a.frequency.linearRampToValueAtTime(3360, at + .28);
+	b.frequency.linearRampToValueAtTime(3520, at + .28);
+	a.connect(g);
+	b.connect(g);
+	a.start(at);
+	b.start(at);
+	a.stop(at + .46);
+	b.stop(at + .46);
+	burst(.08, .03, 5e3, .4, "highpass");
+	a.onended = () => {
+		a.disconnect();
+		b.disconnect();
+		g.disconnect();
+	};
+}
+function thud(low) {
+	tone(low, .16, "sine", .28, -low * .55, .004);
+	tone(low * 1.5, .08, "triangle", .08, -40, .004);
+	burst(.12, .22, 180, .6);
+	burst(.05, .12, 2400, .8, "highpass");
+}
 function playSfx(name) {
 	if (!ensure() || muted || !name) return;
 	const wobble = .94 + Math.random() * .12;
 	switch (name) {
 		case "snap":
-			burst(.09, .22, 180);
-			tone(140, .08, "sine", .18);
+			burst(.05, .28, 2200, .9, "highpass");
+			burst(.09, .16, 240, .5);
+			tone(180, .06, "sine", .1, -40, .004);
+			pumpCrowd(.32);
 			break;
 		case "pass":
-			burst(.12, .12, 900);
-			tone(520 * wobble, .09, "triangle", .08, 80);
+			burst(.16, .1, 1600, .45);
+			tone(420 * wobble, .12, "triangle", .05, 220, .01);
+			burst(.08, .06, 700, 1.2);
+			break;
+		case "kick":
+			thud(70);
+			burst(.18, .08, 900, .4);
+			tone(160, .2, "sine", .08, 80);
+			pumpCrowd(.4);
 			break;
 		case "catch":
-			tone(660 * wobble, .1, "sine", .12);
-			burst(.08, .16, 1400);
+			burst(.06, .2, 1800, .8);
+			tone(540 * wobble, .07, "sine", .08);
+			burst(.1, .1, 400, .5);
+			pumpCrowd(.62);
 			break;
 		case "inc":
-			tone(220, .18, "sine", .08, -80);
-			burst(.14, .08, 300);
+			tone(240, .16, "sine", .06, -90);
+			burst(.14, .1, 280, .5);
+			thud(55);
 			break;
 		case "hit":
+			thud(78);
+			tone(140, .1, "square", .04, -60, .004);
+			pumpCrowd(.58);
+			break;
 		case "tackle":
-			burst(.16, .28, 160);
-			tone(90, .18, "sine", .2, -40);
+			thud(64);
+			burst(.18, .16, 140, .45);
+			pumpCrowd(.5);
 			break;
 		case "juke":
-			tone(340 * wobble, .07, "square", .05, 120);
+			tone(480 * wobble, .05, "square", .035, 180, .004);
+			burst(.05, .05, 2e3, 1);
 			break;
 		case "whistle":
-			tone(1480, .22, "sine", .07, 180);
-			tone(1760, .18, "sine", .04, -60);
+			whistle();
 			break;
 		case "first":
-			tone(523, .1, "triangle", .08);
-			tone(659, .14, "triangle", .07);
+			tone(523, .09, "triangle", .07);
+			tone(659, .12, "triangle", .07);
+			tone(784, .16, "sine", .05);
+			pumpCrowd(.7);
 			break;
 		case "td":
-			tone(523, .16, "sawtooth", .05);
-			tone(659, .18, "sawtooth", .05);
-			tone(784, .28, "triangle", .08);
-			burst(.2, .1, 240);
+			tone(196, .22, "sawtooth", .04);
+			tone(262, .28, "triangle", .06);
+			tone(392, .34, "triangle", .06);
+			tone(523, .42, "sine", .05);
+			burst(.35, .08, 500, .4);
+			pumpCrowd(1);
 			break;
 		case "int":
-			tone(392, .12, "square", .06);
-			tone(311, .2, "square", .05);
-			burst(.12, .12, 500);
+			tone(440, .1, "square", .045, -80);
+			tone(330, .18, "square", .04, -40);
+			burst(.12, .1, 700, .6);
+			pumpCrowd(.75);
 			break;
-		case "miss": tone(196, .22, "sine", .07, -70);
+		case "miss":
+			tone(220, .2, "sine", .06, -80);
+			tone(175, .28, "triangle", .04, -30);
+			burst(.16, .06, 300, .4);
 	}
-}
-function resumeAudio() {
-	if (ctx && ctx.state === "suspended") ctx.resume();
 }
 var neutralPad = () => ({
 	ax: 0,
@@ -2936,7 +3087,7 @@ function doPunt(s) {
 	}
 	setupReturn(s, recv, clamp(land, 18, 102));
 	say(s, "PUNT", `${Math.round(net)} yard kick`);
-	sfx(s, "pass");
+	sfx(s, "kick");
 }
 function whistleIncomplete(s) {
 	s.ball.state = "dead";
@@ -3609,7 +3760,10 @@ function packSnap(s) {
 			qn(s.ball.y),
 			qn(s.ball.z),
 			s.ball.carrier,
-			s.ball.state === "air" ? 1 : s.ball.state === "dead" ? 2 : 0
+			s.ball.state === "air" ? 1 : s.ball.state === "dead" ? 2 : 0,
+			qn(s.ball.vx),
+			qn(s.ball.vy),
+			qn(s.ball.vz)
 		],
 		sfxN: s.sfxN,
 		sfx: s.sfx,
@@ -3621,7 +3775,9 @@ function packSnap(s) {
 		def: s.defId,
 		kind: s.kind,
 		thrown: s.thrown,
-		two: s.twoPt
+		two: s.twoPt,
+		paused: s.paused,
+		chosen: [s.chosen[0], s.chosen[1]]
 	};
 }
 function applySnap(s, snap) {
@@ -3653,11 +3809,16 @@ function applySnap(s, snap) {
 	s.kind = snap.kind;
 	s.thrown = snap.thrown;
 	s.twoPt = snap.two;
+	s.paused = snap.paused;
+	s.chosen = snap.chosen;
 	s.ball.tx = snap.ball[0];
 	s.ball.ty = snap.ball[1];
 	s.ball.tz = snap.ball[2];
 	s.ball.carrier = snap.ball[3];
 	s.ball.state = snap.ball[4] === 1 ? "air" : snap.ball[4] === 2 ? "dead" : "held";
+	s.ball.vx = snap.ball[5] ?? s.ball.vx;
+	s.ball.vy = snap.ball[6] ?? s.ball.vy;
+	s.ball.vz = snap.ball[7] ?? s.ball.vz;
 	for (let i = 0; i < 22; i++) {
 		const p = s.players[i];
 		p.tx = snap.px[i] ?? p.x;
@@ -3676,14 +3837,23 @@ function applySnap(s, snap) {
 	}
 }
 function smoothGuest(s, dt) {
-	const k = Math.min(1, dt * 12);
+	const k = Math.min(1, dt * 10);
 	for (const p of s.players) {
-		p.x += (p.tx - p.x) * k;
-		p.y += (p.ty - p.y) * k;
+		const px = p.x + p.vx * dt;
+		const py = p.y + p.vy * dt;
+		p.x = px + (p.tx - px) * k;
+		p.y = py + (p.ty - py) * k;
 	}
-	s.ball.x += (s.ball.tx - s.ball.x) * k;
-	s.ball.y += (s.ball.ty - s.ball.y) * k;
-	s.ball.z += (s.ball.tz - s.ball.z) * k;
+	if (s.ball.state === "air") {
+		s.ball.x += s.ball.vx * dt;
+		s.ball.y += s.ball.vy * dt;
+		s.ball.z = Math.max(0, s.ball.z + s.ball.vz * dt);
+		s.ball.vz -= 30 * dt;
+	}
+	const bk = s.ball.state === "air" ? Math.min(1, dt * 6) : k;
+	s.ball.x += (s.ball.tx - s.ball.x) * bk;
+	s.ball.y += (s.ball.ty - s.ball.y) * bk;
+	s.ball.z += (s.ball.tz - s.ball.z) * bk;
 }
 function openTarget(s) {
 	return bestHot(s);
@@ -3723,7 +3893,9 @@ function readHud(s) {
 		losPct: Math.max(0, Math.min(100, fromLeft)),
 		firstPct: Math.max(0, Math.min(100, firstX - 10)),
 		carrierIsQb: !!carrier && carrier.idx === 0 && carrier.team === s.poss,
-		group
+		group,
+		online: s.online,
+		ready: [s.chosen[0] != null, s.chosen[1] != null]
 	};
 }
 var emptyEdges = () => ({
@@ -3746,6 +3918,8 @@ function Nightline() {
 	const remote = (0, import_react.useRef)(neutralPad());
 	const net = (0, import_react.useRef)(null);
 	const lastSfx = (0, import_react.useRef)(0);
+	const phaseHold = (0, import_react.useRef)("menu");
+	const flushNet = (0, import_react.useRef)(false);
 	const [hud, setHud] = (0, import_react.useState)(() => readHud(sim.current));
 	const [screen, setScreen] = (0, import_react.useState)("menu");
 	const [sharp, setSharp] = (0, import_react.useState)(false);
@@ -3754,8 +3928,15 @@ function Nightline() {
 	const [picked, setPicked] = (0, import_react.useState)(null);
 	const [booth, setBooth] = (0, import_react.useState)(null);
 	const [linkLost, setLinkLost] = (0, import_react.useState)(false);
+	const [linkNote, setLinkNote] = (0, import_react.useState)("");
+	const [guestReady, setGuestReady] = (0, import_react.useState)(false);
+	const [rematchAsk, setRematchAsk] = (0, import_react.useState)(false);
+	const [asked, setAsked] = (0, import_react.useState)(false);
 	const homeRef = (0, import_react.useRef)(false);
 	const push = (0, import_react.useCallback)(() => setHud(readHud(sim.current)), []);
+	const onPeer = (0, import_react.useCallback)((up) => {
+		if (!up) setGuestReady(false);
+	}, []);
 	(0, import_react.useEffect)(() => {
 		const onDown = (e) => {
 			const el = e.target;
@@ -3773,6 +3954,11 @@ function Nightline() {
 				if (s.phase !== "menu" && s.phase !== "lobby") {
 					s.paused = !s.paused;
 					setPaused(s.paused);
+					flushNet.current = true;
+					if (s.online && s.myTeam === 1) net.current?.send({
+						k: "pause",
+						on: s.paused
+					});
 				}
 				return;
 			}
@@ -3866,9 +4052,17 @@ function Nightline() {
 				remote.current.throwTo = null;
 			}
 			if (!s.simLocal) smoothGuest(s, dt);
+			setCrowdBed(s.phase === "live" ? .4 : s.phase === "menu" || s.phase === "lobby" ? .08 : .18);
+			tickAudio(dt);
 			if (s.simLocal && s.sfxN !== lastSfx.current) {
 				lastSfx.current = s.sfxN;
 				playSfx(s.sfx);
+				flushNet.current = true;
+			}
+			if (s.online && s.simLocal && (flushNet.current || s.phase !== phaseHold.current)) {
+				phaseHold.current = s.phase;
+				flushNet.current = false;
+				sendAcc = 1;
 			}
 			draw(s, dt, { team: s.myTeam });
 			const link = net.current;
@@ -3938,16 +4132,23 @@ function Nightline() {
 			k: "call",
 			id
 		});
-		else choosePlay(s, s.myTeam, id);
+		else {
+			choosePlay(s, s.myTeam, id);
+			flushNet.current = true;
+		}
 		push();
 	}
 	function onKickMeter(acc) {
+		playSfx("kick");
 		const s = sim.current;
 		if (s.online && s.myTeam === 1) net.current?.send({
 			k: "kick",
 			acc
 		});
-		else resolveKick(s, acc);
+		else {
+			resolveKick(s, acc);
+			flushNet.current = true;
+		}
 		push();
 	}
 	function quit() {
@@ -3960,15 +4161,21 @@ function Nightline() {
 		setScreen("menu");
 		setPaused(false);
 		setLinkLost(false);
+		setGuestReady(false);
+		setRematchAsk(false);
+		setAsked(false);
+		setLinkNote("");
 		push();
 	}
 	const onNet = (0, import_react.useCallback)((data) => {
 		const msg = data;
 		const s = sim.current;
 		if (!homeRef.current && msg.k === "st") {
+			const wasPaused = s.paused;
 			const before = s.sfxN;
 			applySnap(s, data);
 			if (s.sfxN !== before) playSfx(s.sfx);
+			if (s.paused !== wasPaused) setPaused(s.paused);
 			return;
 		}
 		if (homeRef.current && msg.k === "in") {
@@ -3980,14 +4187,25 @@ function Nightline() {
 			remote.current.dive = !!msg.dive;
 			remote.current.switch = !!msg.switch;
 			remote.current.throwTo = msg.throwTo ?? null;
-		} else if (homeRef.current && msg.k === "call" && msg.id) choosePlay(s, 1, msg.id);
-		else if (homeRef.current && msg.k === "kick" && typeof msg.acc === "number") resolveKick(s, msg.acc);
-		else if (homeRef.current && msg.k === "pat") {
+		} else if (homeRef.current && msg.k === "call" && msg.id) {
+			choosePlay(s, 1, msg.id);
+			flushNet.current = true;
+		} else if (homeRef.current && msg.k === "kick" && typeof msg.acc === "number") {
+			playSfx("kick");
+			resolveKick(s, msg.acc);
+			flushNet.current = true;
+		} else if (homeRef.current && msg.k === "pat") {
 			if (msg.mode === "two") {
 				s.patTeam = 1;
 				startTwo(s);
 			} else startKick(s, 1, "xp");
-		}
+			flushNet.current = true;
+		} else if (homeRef.current && msg.k === "pause") {
+			s.paused = !!msg.on;
+			setPaused(s.paused);
+			flushNet.current = true;
+		} else if (homeRef.current && msg.k === "ready") setGuestReady(true);
+		else if (homeRef.current && msg.k === "rematch") setRematchAsk(true);
 	}, []);
 	(0, import_react.useEffect)(() => {
 		if (hud.phase !== "call") setPicked(null);
@@ -4019,7 +4237,16 @@ function Nightline() {
 					onPause: () => {
 						sim.current.paused = true;
 						setPaused(true);
+						flushNet.current = true;
+						if (sim.current.online && sim.current.myTeam === 1) net.current?.send({
+							k: "pause",
+							on: true
+						});
 					}
+				}),
+				booth && hud.phase !== "menu" && hud.phase !== "lobby" && linkNote && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+					className: "pointer-events-none px-3 text-xs text-muted",
+					children: linkNote
 				}),
 				hud.banner && hud.phase !== "menu" && hud.phase !== "call" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "pointer-events-none mx-auto mt-3 max-w-lg px-4 text-center",
@@ -4051,6 +4278,9 @@ function Nightline() {
 						});
 						setScreen("booth");
 						setLinkLost(false);
+						setGuestReady(false);
+						setRematchAsk(false);
+						setAsked(false);
 						push();
 					},
 					onJoin: (code) => {
@@ -4063,6 +4293,9 @@ function Nightline() {
 						});
 						setScreen("booth");
 						setLinkLost(false);
+						setGuestReady(false);
+						setRematchAsk(false);
+						setAsked(false);
 						push();
 					}
 				}),
@@ -4074,9 +4307,13 @@ function Nightline() {
 					onMessage: onNet,
 					onKick: () => {
 						hostKickoff(sim.current);
+						flushNet.current = true;
 						push();
 					},
-					onLost: () => setLinkLost(true)
+					onLost: () => setLinkLost(true),
+					onLink: setLinkNote,
+					guestReady,
+					onPeer
 				}),
 				hud.phase === "call" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CallSheet, {
 					offense,
@@ -4175,11 +4412,19 @@ function Nightline() {
 				}),
 				hud.phase === "final" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Final, {
 					hud,
+					ask: rematchAsk,
+					asked,
 					onAgain: () => {
 						if (sim.current.online && homeRef.current) {
+							setRematchAsk(false);
+							setAsked(false);
 							hostKickoff(sim.current);
+							flushNet.current = true;
 							push();
-						} else if (!sim.current.online) startSolo();
+						} else if (sim.current.online) {
+							net.current?.send({ k: "rematch" });
+							setAsked(true);
+						} else startSolo();
 					},
 					onQuit: quit
 				}),
@@ -4214,26 +4459,38 @@ function Nightline() {
 					className: "absolute inset-0 z-30 flex items-center justify-center bg-bg/80 px-4",
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 						className: "w-full max-w-sm rounded-2xl border border-line bg-surface p-5",
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
-							className: "font-display text-3xl",
-							children: "Paused"
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: "mt-4 flex gap-2",
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								type: "button",
-								className: "h-12 flex-1 rounded-xl bg-aces font-display text-lg text-bg",
-								onClick: () => {
-									sim.current.paused = false;
-									setPaused(false);
-								},
-								children: "Resume"
-							}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								type: "button",
-								className: "h-12 flex-1 rounded-xl border border-line",
-								onClick: quit,
-								children: "Quit"
-							})]
-						})]
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", {
+								className: "font-display text-3xl",
+								children: "Paused"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+								className: "mt-1 text-sm text-muted",
+								children: hud.online ? "Held for both of you." : "Take a breath."
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+								className: "mt-4 flex gap-2",
+								children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: "h-12 flex-1 rounded-xl bg-aces font-display text-lg text-bg",
+									onClick: () => {
+										sim.current.paused = false;
+										setPaused(false);
+										flushNet.current = true;
+										if (sim.current.online && sim.current.myTeam === 1) net.current?.send({
+											k: "pause",
+											on: false
+										});
+									},
+									children: "Resume"
+								}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: "h-12 flex-1 rounded-xl border border-line",
+									onClick: quit,
+									children: "Quit"
+								})]
+							})
+						]
 					})
 				})
 			]
@@ -4381,12 +4638,13 @@ function LinkPanel({ onBack, onHost, onJoin }) {
 		})
 	});
 }
-function Online({ room, home, hud, netRef, onMessage, onKick, onLost }) {
+function Online({ room, home, hud, netRef, onMessage, onKick, onLost, onLink, onPeer, guestReady }) {
 	const p2p = useP2PRoom({
 		room,
 		name: home ? "Aces" : "Kings"
 	});
 	const seen = (0, import_react.useRef)(false);
+	const [readySent, setReadySent] = (0, import_react.useState)(false);
 	(0, import_react.useEffect)(() => {
 		netRef.current = {
 			broadcast: p2p.broadcast,
@@ -4401,15 +4659,25 @@ function Online({ room, home, hud, netRef, onMessage, onKick, onLost }) {
 	(0, import_react.useEffect)(() => {
 		const up = p2p.peers.some((p) => p.connectionState === "connected");
 		if (up) seen.current = true;
+		onPeer(up);
 		if (seen.current && p2p.joined && !up && hud.phase !== "lobby" && hud.phase !== "menu") onLost();
+		const peer = p2p.peers[0];
+		if (!p2p.joined) onLink("Opening the booth…");
+		else if (!peer) onLink("Waiting for the other coach");
+		else if (peer.connectionState === "connected") onLink(peer.rttMs ? `Linked · ${peer.rttMs} ms` : "Linked");
+		else if (peer.connectionState === "failed") onLink("Direct link failed");
+		else onLink("Connecting…");
 	}, [
 		p2p.peers,
 		p2p.joined,
 		hud.phase,
-		onLost
+		onLost,
+		onLink,
+		onPeer
 	]);
 	if (hud.phase !== "lobby") return null;
 	const peer = p2p.peers[0];
+	const linked = !!peer && peer.connectionState === "connected";
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "absolute inset-x-0 bottom-0 flex justify-center px-4 pb-6",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -4426,7 +4694,7 @@ function Online({ room, home, hud, netRef, onMessage, onKick, onLost }) {
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
 					type: "button",
 					className: "mt-2 inline-flex items-center gap-2 text-sm text-aces",
-					onClick: () => void navigator.clipboard?.writeText(room),
+					onClick: () => void navigator.clipboard?.writeText(`Nightline booth ${room}`),
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Copy, { className: "size-4" }), "Copy code"]
 				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(PeerLine, {
@@ -4435,13 +4703,19 @@ function Online({ room, home, hud, netRef, onMessage, onKick, onLost }) {
 				}),
 				home ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 					type: "button",
-					disabled: !peer || peer.connectionState !== "connected",
+					disabled: !linked || !guestReady,
 					className: "mt-4 h-12 w-full rounded-xl bg-aces font-display text-lg text-bg disabled:opacity-40",
 					onClick: onKick,
-					children: "Kick off"
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
-					className: "mt-4 text-sm text-muted",
-					children: "Waiting for Ridge to kick off."
+					children: guestReady ? "Kick off" : "Waiting for Kings"
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					disabled: !linked || readySent,
+					className: "mt-4 h-12 w-full rounded-xl bg-kings font-display text-lg text-bg disabled:opacity-40",
+					onClick: () => {
+						netRef.current?.send({ k: "ready" });
+						setReadySent(true);
+					},
+					children: readySent ? "Ready — waiting on the kick" : "Ready up"
 				})
 			]
 		})
@@ -4561,6 +4835,9 @@ function CallSheet({ offense, hud, picked, onPick }) {
 	const dist = hud.poss === 0 ? 100 - hud.losPct : hud.losPct;
 	const suggested = offense ? suggestOff(hud.downN, hud.toGo, dist) : suggestDef(hud.downN, hud.toGo, dist);
 	const plays = offense ? OFFENSE : DEFENSE;
+	const theirs = hud.ready[hud.myTeam === 0 ? 1 : 0];
+	const foe = hud.poss === 0 ? "the Aces" : "the Kings";
+	const status = !hud.online ? offense ? "You have the ball" : `Stop ${foe}` : picked && !theirs ? "Call sent · waiting on them" : !picked && theirs ? offense ? "They're set · your call" : "They're set · pick a coverage" : offense ? "You have the ball" : `Stop ${foe}`;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "call-sheet overflow-y-auto px-3 pb-4",
 		children: [
@@ -4571,7 +4848,7 @@ function CallSheet({ offense, hud, picked, onPick }) {
 					children: offense ? "Offense" : "Defense"
 				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
 					className: "text-xs text-muted",
-					children: offense ? "You have the ball" : "Stop the Aces"
+					children: status
 				})]
 			}),
 			offense && hud.downN === 4 && !hud.two && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -4756,7 +5033,7 @@ function Meter({ dist, label, onKick }) {
 		]
 	});
 }
-function Final({ hud, onAgain, onQuit }) {
+function Final({ hud, ask, asked, onAgain, onQuit }) {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: "absolute inset-0 z-20 flex items-center justify-center bg-bg/75 px-4",
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -4781,6 +5058,14 @@ function Final({ hud, onAgain, onQuit }) {
 					className: "mt-1 text-sm text-aces",
 					children: hud.endNote
 				}),
+				ask && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+					className: "mt-2 text-sm text-kings",
+					children: "They want another kickoff."
+				}),
+				asked && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", {
+					className: "mt-2 text-sm text-muted",
+					children: "Rematch sent. Waiting on the host."
+				}),
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: "mt-4 grid grid-cols-2 gap-2 text-left text-xs text-muted",
 					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Aces on the board" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -4794,7 +5079,8 @@ function Final({ hud, onAgain, onQuit }) {
 						type: "button",
 						className: "h-12 flex-1 rounded-xl bg-aces font-display text-bg",
 						onClick: onAgain,
-						children: "Rematch"
+						disabled: asked,
+						children: ask ? "Kick it off" : asked ? "Asked" : "Rematch"
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
 						type: "button",
 						className: "h-12 flex-1 rounded-xl border border-line",
